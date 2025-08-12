@@ -1,0 +1,1 @@
+LABEL com.redhat.component="openshift-"       io.k8s.description="..."       description="..."       distribution-scope="public"       name="openshift/"       url="https://github.com/openshift/"       vendor="Red Hat, Inc."       release="v0.0.0"       version="v0.0.0"
