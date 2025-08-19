@@ -221,9 +221,9 @@ $(LOCALBIN):
 ## Tool Binaries
 KUBECTL ?= kubectl
 KIND ?= kind
-KUSTOMIZE ?= $(LOCALBIN)/kustomize
-CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
-ENVTEST ?= $(LOCALBIN)/setup-envtest
+KUSTOMIZE = $(LOCALBIN)/kustomize
+CONTROLLER_GEN = $(LOCALBIN)/controller-gen
+ENVTEST = $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 
 ## Tool Versions
