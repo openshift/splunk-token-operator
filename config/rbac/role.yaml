@@ -1,11 +1,32 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    app.kubernetes.io/name: splunk-token-operator
-    app.kubernetes.io/managed-by: kustomize
   name: manager-role
 rules:
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - splunktoken.managed.openshift.io
+  resources:
+  - splunktokens
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - splunktoken.managed.openshift.io
+  resources:
+  - splunktokens/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - splunktoken.managed.openshift.io
+  resources:
+  - splunktokens/status
+  verbs:
+  - get
+  - patch
+  - update

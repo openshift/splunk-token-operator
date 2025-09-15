@@ -1,0 +1,9 @@
+apiVersion: splunktoken.managed.openshift.io/v1alpha1
+kind: SplunkToken
+metadata:
+  labels:
+    app.kubernetes.io/name: splunk-token-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: splunktoken-sample
+spec:
+  # TODO(user): Add fields here
