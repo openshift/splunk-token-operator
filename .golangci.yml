@@ -28,6 +28,11 @@ linters:
         - name: import-shadowing
   exclusions:
     generated: lax
+    presets:
+      - common-false-positives
+      - comments
+      - legacy
+      - std-error-handling
     rules:
       - linters:
           - lll
@@ -36,6 +41,10 @@ linters:
           - dupl
           - lll
         path: internal/*
+      - linters:
+          - goconst
+          - errcheck
+        path: '(.+)_test\.go'
     paths:
       - third_party$
       - builtin$
