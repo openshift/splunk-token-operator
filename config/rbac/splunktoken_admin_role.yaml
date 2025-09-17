@@ -1,0 +1,27 @@
+# This rule is not used by the project splunk-token-operator itself.
+# It is provided to allow the cluster admin to help manage permissions for users.
+#
+# Grants full permissions ('*') over splunktoken.managed.openshift.io.
+# This role is intended for users authorized to modify roles and bindings within the cluster,
+# enabling them to delegate specific permissions to other users or groups as needed.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: splunk-token-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: splunktoken-admin-role
+rules:
+- apiGroups:
+  - splunktoken.managed.openshift.io
+  resources:
+  - splunktokens
+  verbs:
+  - '*'
+- apiGroups:
+  - splunktoken.managed.openshift.io
+  resources:
+  - splunktokens/status
+  verbs:
+  - get

@@ -10,4 +10,14 @@ plugins:
   scorecard.sdk.operatorframework.io/v2: {}
 projectName: splunk-token-operator
 repo: github.com/openshift/splunk-token-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: managed.openshift.io
+  group: splunktoken
+  kind: SplunkToken
+  path: github.com/openshift/splunk-token-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"
