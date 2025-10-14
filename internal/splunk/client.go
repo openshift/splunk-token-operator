@@ -133,7 +133,10 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusAccepted {
+	if res.StatusCode == http.StatusNotFound {
+		// HEC token doesn't exist so we're done here
+		return nil
+	} else if res.StatusCode != http.StatusAccepted {
 		decoder := json.NewDecoder(res.Body)
 		response := &errorResponse{}
 		if err := decoder.Decode(response); err != nil {

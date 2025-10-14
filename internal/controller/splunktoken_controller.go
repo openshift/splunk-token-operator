@@ -19,37 +19,63 @@ package controller
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	splunktokenv1alpha1 "github.com/openshift/splunk-token-operator/api/v1alpha1"
+	stv1alpha1 "github.com/openshift/splunk-token-operator/api/v1alpha1"
+	"github.com/openshift/splunk-token-operator/config"
+	splunkapi "github.com/openshift/splunk-token-operator/internal/splunk"
 )
 
 // SplunkTokenReconciler reconciles a SplunkToken object
 type SplunkTokenReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	SplunkApi splunkapi.TokenManager
+	Scheme    *runtime.Scheme
 }
 
 // +kubebuilder:rbac:groups=splunktoken.managed.openshift.io,resources=splunktokens,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=splunktoken.managed.openshift.io,resources=splunktokens/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=splunktoken.managed.openshift.io,resources=splunktokens/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the SplunkToken object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
+// Reconcile takes the following actions depending on the state of the SplunkToken:
+//   - If the SplunkToken no longer exists there is nothing to do and Reconcile ends.
+//   - If the SplunkToken has a deletion timestamp, the HEC Token is deleted from the Splunk server.
+//   - If the CreationTimestamp of the SplunkToken is older than the configured MaxAge,
+//     the SplunkToken object is deleted so the token can be rotated.
+//   - If there is no Secret object for the HEC token,
+//     a new token is created on the Splunk server.
+//     The Reconciler stores the token value in a Secret,
+//     and a SyncSet is created to push the token to the managed cluster.
 func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
+	log := logf.FromContext(ctx).WithValues("namespace", req.Namespace)
 
-	// TODO(user): your logic here
+	var tokenObject stv1alpha1.SplunkToken
+	err := r.Get(ctx, req.NamespacedName, &tokenObject)
+	if errors.IsNotFound(err) {
+		log.Info("token not found")
+		return ctrl.Result{}, nil
+	} else if err != nil {
+		log.Error(err, "error retrieving SplunkToken")
+		return ctrl.Result{}, err
+	}
+
+	if !tokenObject.DeletionTimestamp.IsZero() {
+		if err := r.SplunkApi.DeleteToken(ctx, tokenObject.Spec.Name); err != nil {
+			log.Error(err, "error deleting HEC token from Splunk")
+			return ctrl.Result{}, err
+		}
+		controllerutil.RemoveFinalizer(&tokenObject, config.TokenFinalizer)
+		if err := r.Update(ctx, &tokenObject); err != nil {
+			log.Error(err, "error removing finalizer")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -57,7 +83,7 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 func (r *SplunkTokenReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&splunktokenv1alpha1.SplunkToken{}).
+		For(&stv1alpha1.SplunkToken{}).
 		Named("splunktoken").
 		Complete(r)
 }
