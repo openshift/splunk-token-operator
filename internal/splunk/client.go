@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+
+	"github.com/openshift/splunk-token-operator/api/v1alpha1"
 )
 
 const (
@@ -43,10 +45,8 @@ type TokenManager interface {
 // its value (the auth token itself),
 // and the Splunk indexes the token is able to write to.
 type HECToken struct {
-	Name           string   `json:"name"`
-	DefaultIndex   string   `json:"defaultIndex,omitempty"`
-	AllowedIndexes []string `json:"allowedIndexes,omitempty"`
-	Value          string   `json:"token,omitempty"`
+	Spec  *v1alpha1.SplunkTokenSpec
+	Value string `json:"token,omitempty"`
 }
 
 type tokenResponse struct {
@@ -83,7 +83,7 @@ func NewClient(splunkStack, jwt string) (*Client, error) {
 func (c *Client) CreateToken(ctx context.Context, token *HECToken) (*HECToken, error) {
 	// clear Value so Splunk server creates a new token on its own
 	token.Value = ""
-	payload, err := json.Marshal(token)
+	payload, err := json.Marshal(token.Spec)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (c *Client) CreateToken(ctx context.Context, token *HECToken) (*HECToken, e
 	}
 
 	// TODO: probably need retries just in case creation takes a while
-	return c.getToken(ctx, token.Name)
+	return c.getToken(ctx, token.Spec.Name)
 }
 
 // DeleteToken deletes the named token, returning any error from the Splunk server.
@@ -179,28 +179,4 @@ func (c *Client) getToken(ctx context.Context, name string) (*HECToken, error) {
 
 func (e *errorResponse) Error() string {
 	return fmt.Sprintf("received error response %s: %s", e.Code, e.Message)
-}
-
-func (t *HECToken) UnmarshalJSON(data []byte) error {
-	var temp struct {
-		Spec struct {
-			AllowedIndexes    []string `json:"allowedIndexes,omitempty"`
-			DefaultIndex      string   `json:"defaultIndex,omitempty"`
-			DefaultSource     string   `json:"defaultSource,omitempty"`
-			DefaultSourcetype string   `json:"defaultSourcetype,omitempty"`
-			Disabled          bool     `json:"disabled,omitempty"`
-			Name              string   `json:"name"`
-			UseAck            bool     `json:"useAck,omitempty"`
-		} `json:"spec"`
-		Value string `json:"token"`
-	}
-	err := json.Unmarshal(data, &temp)
-	if err != nil {
-		return err
-	}
-	t.Name = temp.Spec.Name
-	t.DefaultIndex = temp.Spec.DefaultIndex
-	t.AllowedIndexes = temp.Spec.AllowedIndexes
-	t.Value = temp.Value
-	return nil
 }

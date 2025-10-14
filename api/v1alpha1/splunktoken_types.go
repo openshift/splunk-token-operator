@@ -23,8 +23,12 @@ import (
 // SplunkTokenSpec defines the desired state of SplunkToken.
 // +k8s:openapi-gen=true
 type SplunkTokenSpec struct {
-	// TokenName is the name of the cluster's HTTP Event Collector token on the Splunk instance.
-	TokenName string `json:"tokenName,omitempty"`
+	// Name is the name of the cluster's HTTP Event Collector token on the Splunk instance.
+	Name string `json:"name"`
+	// DefaultIndex is the default Splunk index that logs are sent to.
+	DefaultIndex string `json:"defaultIndex,omitempty"`
+	// AllowedIndexes is a list of other indexes that this token is allowed to send logs to.
+	AllowedIndexes []string `json:"allowedIndexes,omitempty"`
 }
 
 // SplunkTokenStatus defines the observed state of SplunkToken.

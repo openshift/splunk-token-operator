@@ -39,10 +39,22 @@ spec:
           spec:
             description: SplunkTokenSpec defines the desired state of SplunkToken.
             properties:
-              tokenName:
-                description: TokenName is the name of the cluster's HTTP Event Collector
+              allowedIndexes:
+                description: AllowedIndexes is a list of other indexes that this token
+                  is allowed to send logs to.
+                items:
+                  type: string
+                type: array
+              defaultIndex:
+                description: DefaultIndex is the default Splunk index that logs are
+                  sent to.
+                type: string
+              name:
+                description: Name is the name of the cluster's HTTP Event Collector
                   token on the Splunk instance.
                 type: string
+            required:
+            - name
             type: object
           status:
             description: SplunkTokenStatus defines the observed state of SplunkToken.

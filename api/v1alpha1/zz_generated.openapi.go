@@ -14,13 +14,13 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkToken":       schema_openshift_splunk_token_operator_api_v1alpha1_SplunkToken(ref),
-		"github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenSpec":   schema_openshift_splunk_token_operator_api_v1alpha1_SplunkTokenSpec(ref),
-		"github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenStatus": schema_openshift_splunk_token_operator_api_v1alpha1_SplunkTokenStatus(ref),
+		"./api/v1alpha1.SplunkToken":       schema__api_v1alpha1_SplunkToken(ref),
+		"./api/v1alpha1.SplunkTokenSpec":   schema__api_v1alpha1_SplunkTokenSpec(ref),
+		"./api/v1alpha1.SplunkTokenStatus": schema__api_v1alpha1_SplunkTokenStatus(ref),
 	}
 }
 
-func schema_openshift_splunk_token_operator_api_v1alpha1_SplunkToken(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema__api_v1alpha1_SplunkToken(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -50,44 +50,68 @@ func schema_openshift_splunk_token_operator_api_v1alpha1_SplunkToken(ref common.
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenSpec"),
+							Ref:     ref("./api/v1alpha1.SplunkTokenSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenStatus"),
+							Ref:     ref("./api/v1alpha1.SplunkTokenStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenSpec", "github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"./api/v1alpha1.SplunkTokenSpec", "./api/v1alpha1.SplunkTokenStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
-func schema_openshift_splunk_token_operator_api_v1alpha1_SplunkTokenSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema__api_v1alpha1_SplunkTokenSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "SplunkTokenSpec defines the desired state of SplunkToken.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"tokenName": {
+					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "TokenName is the name of the cluster's HTTP Event Collector token on the Splunk instance.",
+							Description: "Name is the name of the cluster's HTTP Event Collector token on the Splunk instance.",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
+					"defaultIndex": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DefaultIndex is the default Splunk index that logs are sent to.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"allowedIndexes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AllowedIndexes is a list of other indexes that this token is allowed to send logs to.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 				},
+				Required: []string{"name"},
 			},
 		},
 	}
 }
 
-func schema_openshift_splunk_token_operator_api_v1alpha1_SplunkTokenStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema__api_v1alpha1_SplunkTokenStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
