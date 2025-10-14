@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,8 +35,9 @@ import (
 // SplunkTokenReconciler reconciles a SplunkToken object
 type SplunkTokenReconciler struct {
 	client.Client
-	SplunkApi splunkapi.TokenManager
-	Scheme    *runtime.Scheme
+	Scheme       *runtime.Scheme
+	SplunkApi    splunkapi.TokenManager
+	SplunkConfig config.Splunk
 }
 
 // +kubebuilder:rbac:groups=splunktoken.managed.openshift.io,resources=splunktokens,verbs=get;list;watch;create;update;patch;delete
@@ -65,6 +67,7 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	if !tokenObject.DeletionTimestamp.IsZero() {
+		log.Info("SplunkToken has deletion timestamp, deleting HEC token from Splunk server")
 		if err := r.SplunkApi.DeleteToken(ctx, tokenObject.Spec.Name); err != nil {
 			log.Error(err, "error deleting HEC token from Splunk")
 			return ctrl.Result{}, err
@@ -75,6 +78,16 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
+	}
+
+	currentTime := time.Now()
+	tokenRotationDeadline := tokenObject.CreationTimestamp.Add(r.SplunkConfig.TokenMaxAge)
+	if currentTime.After(tokenRotationDeadline) {
+		log.Info("SplunkToken is stale, rotating")
+		if err := r.Delete(ctx, &tokenObject); err != nil {
+			log.Error(err, "error deleting SplunkToken object")
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil

@@ -65,7 +65,7 @@ func TestReconcile(t *testing.T) {
 			},
 		}
 		if _, err := reconciler.Reconcile(t.Context(), request); err != nil {
-			t.Errorf("got unexpected error during reconcile: %s", err)
+			t.Errorf("unexpected error during reconcile: %s", err)
 		}
 	})
 
@@ -105,7 +105,7 @@ func TestReconcile(t *testing.T) {
 		}
 
 		if _, err := reconciler.Reconcile(t.Context(), request); err != nil {
-			t.Errorf("got unexpected error during reconcile: %s", err)
+			t.Errorf("unexpected error during reconcile: %s", err)
 		}
 		if !mockSplunk.deleteCalled {
 			t.Errorf("should have called DeleteToken for token '%s'", splunkToken.Spec.Name)
@@ -115,6 +115,59 @@ func TestReconcile(t *testing.T) {
 		err := fakeClient.Get(t.Context(), request.NamespacedName, &resultToken)
 		if !kerrors.IsNotFound(err) {
 			t.Errorf("expected token to be deleted after reconcile, instead got SplunkToken: %v, err: %s", resultToken, err)
+		}
+	})
+
+	t.Run("deletes SplunkToken object if past rotation time", func(t *testing.T) {
+		splunkToken := stv1alpha1.SplunkToken{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "SplunkToken",
+				APIVersion: "splunktoken.managed.openshift.io/v1alpha1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:         "test-namespace",
+				Name:              config.TokenSecretName,
+				CreationTimestamp: metav1.NewTime(time.Now().Add(-3 * time.Hour)),
+			},
+			Spec: stv1alpha1.SplunkTokenSpec{
+				Name: "internal-cluster-id",
+			},
+		}
+		controllerutil.AddFinalizer(&splunkToken, config.TokenFinalizer)
+
+		fakeClient := fakeclient.NewClientBuilder().
+			WithScheme(scheme).
+			WithRuntimeObjects(&splunkToken).
+			Build()
+
+		mockSplunk := mockSplunkClient{
+			create: createErrorIfCalled,
+			delete: deleteSuccess,
+		}
+
+		splunkConfig := config.Splunk{
+			TokenMaxAge: time.Hour,
+		}
+
+		reconciler := SplunkTokenReconciler{
+			Client:       fakeClient,
+			Scheme:       scheme,
+			SplunkApi:    &mockSplunk,
+			SplunkConfig: splunkConfig,
+		}
+
+		if _, err := reconciler.Reconcile(t.Context(), request); err != nil {
+			t.Errorf("unexpected error during reconcile: %s", err)
+		}
+
+		var resultToken stv1alpha1.SplunkToken
+		err := fakeClient.Get(t.Context(), request.NamespacedName, &resultToken)
+		if err != nil {
+			t.Errorf("error checking updated token: %s", err)
+		}
+
+		if resultToken.DeletionTimestamp.IsZero() {
+			t.Error("SplunkToken object should have DeletionTimestamp")
 		}
 	})
 }

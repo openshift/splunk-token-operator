@@ -202,6 +202,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// TODO: add config to reconciler setup process
 	if err := (&controller.SplunkTokenReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
