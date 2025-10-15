@@ -18,10 +18,13 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -88,8 +91,39 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			log.Error(err, "error deleting SplunkToken object")
 			return ctrl.Result{}, err
 		}
+		return ctrl.Result{}, nil
 	}
 
+	ownedObjectKey := types.NamespacedName{
+		Namespace: req.Namespace,
+		Name:      config.OwnedObjectName,
+	}
+	var tokenSecret corev1.Secret
+	if err := r.Get(ctx, ownedObjectKey, &tokenSecret); errors.IsNotFound(err) {
+		log.Info("token Secret not found, requesting new token from Splunk")
+		if controllerutil.AddFinalizer(&tokenObject, config.TokenFinalizer) {
+			if err := r.Update(ctx, &tokenObject); err != nil {
+				return ctrl.Result{}, err
+			}
+			log.Info("finalizer added to SplunkToken")
+		}
+		tokenOptions := splunkapi.HECToken{
+			Spec: tokenObject.Spec,
+		}
+		hecToken, err := r.SplunkApi.CreateToken(ctx, tokenOptions)
+		if err != nil {
+			log.Error(err, "error creating HEC token")
+			return ctrl.Result{}, err
+		}
+		r.newSecretObject(req.Namespace, hecToken.Value, &tokenSecret)
+		if err := r.Create(ctx, &tokenSecret); err != nil {
+			log.Error(err, "error creating Secret object")
+			return ctrl.Result{}, err
+		}
+	} else if err != nil {
+		log.Error(err, "unable to fetch token Secret")
+		return ctrl.Result{}, err
+	}
 	return ctrl.Result{}, nil
 }
 
@@ -99,4 +133,18 @@ func (r *SplunkTokenReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&stv1alpha1.SplunkToken{}).
 		Named("splunktoken").
 		Complete(r)
+}
+
+func (r *SplunkTokenReconciler) newSecretObject(namespace, tokenValue string, secret *corev1.Secret) {
+	secret.Name = config.OwnedObjectName
+	secret.Namespace = namespace
+	outputsConf := `[httpout]
+httpEventCollectorToken = %s
+uri = %s`
+	data := fmt.Appendf([]byte{}, outputsConf, tokenValue, r.SplunkConfig.URI)
+	secret.Data = map[string][]byte{
+		config.SecretDataKey: data,
+	}
+	truePtr := true
+	secret.Immutable = &truePtr
 }

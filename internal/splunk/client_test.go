@@ -101,8 +101,8 @@ func TestCreateToken(t *testing.T) {
 		testClient := createTestClient(splunkServer.URL)
 
 		testClient.CreateToken(t.Context(),
-			&HECToken{
-				Spec: &v1alpha1.SplunkTokenSpec{
+			HECToken{
+				Spec: v1alpha1.SplunkTokenSpec{
 					Name: "bar",
 				},
 			},
@@ -123,27 +123,27 @@ func TestCreateToken(t *testing.T) {
 
 		testClient := createTestClient(splunkServer.URL)
 
-		token := &HECToken{
-			Spec: &v1alpha1.SplunkTokenSpec{
+		token := HECToken{
+			Spec: v1alpha1.SplunkTokenSpec{
 				Name: tokenName,
 			},
 		}
-		token, err := testClient.CreateToken(t.Context(), token)
+		newToken, err := testClient.CreateToken(t.Context(), token)
 		if err != nil {
 			t.Errorf("error creating token: %s", err)
 		}
 
 		// creation response from Splunk is just the token's name
-		if token.Spec.Name != tokenName {
+		if newToken.Spec.Name != tokenName {
 			t.Errorf("expected Name='%s' but got '%s'", tokenName, token.Spec.Name)
 		}
-		if token.Value != "" {
+		if newToken.Value != "" {
 			t.Errorf("expected empty Value but got %s", token.Value)
 		}
-		if token.Spec.DefaultIndex != "" {
+		if newToken.Spec.DefaultIndex != "" {
 			t.Errorf("expected empty DefaultIndex but got %s", token.Spec.DefaultIndex)
 		}
-		if token.Spec.AllowedIndexes != nil {
+		if newToken.Spec.AllowedIndexes != nil {
 			t.Errorf("expected empty AllowedIndexes but got %v", token.Spec.AllowedIndexes)
 		}
 	})
@@ -168,28 +168,28 @@ func TestCreateToken(t *testing.T) {
 
 		testClient := createTestClient(splunkServer.URL)
 
-		token := &HECToken{
-			Spec: &v1alpha1.SplunkTokenSpec{
+		token := HECToken{
+			Spec: v1alpha1.SplunkTokenSpec{
 				Name:           "bar",
 				AllowedIndexes: []string{"audit_index", "other_index"},
 				DefaultIndex:   "audit_index",
 			},
 		}
-		token, err := testClient.CreateToken(t.Context(), token)
+		newToken, err := testClient.CreateToken(t.Context(), token)
 		if err != nil {
 			t.Errorf("error creating token: %s", err)
 		}
 
-		if token.Spec.Name != wantName {
+		if newToken.Spec.Name != wantName {
 			t.Errorf("expected Name '%s' but got '%s'", wantName, token.Spec.Name)
 		}
-		if token.Value != wantValue {
+		if newToken.Value != wantValue {
 			t.Errorf("expected Value %s but got %s", wantValue, token.Value)
 		}
-		if token.Spec.DefaultIndex != wantDefault {
+		if newToken.Spec.DefaultIndex != wantDefault {
 			t.Errorf("expected DefaultIndex %s but got %s", wantDefault, token.Spec.DefaultIndex)
 		}
-		if !reflect.DeepEqual(wantIndexes, token.Spec.AllowedIndexes) {
+		if !reflect.DeepEqual(wantIndexes, newToken.Spec.AllowedIndexes) {
 			t.Errorf("expected AllowedIndexes %v but got %v", wantIndexes, token.Spec.AllowedIndexes)
 		}
 	})
@@ -205,8 +205,8 @@ func TestCreateToken(t *testing.T) {
 		testClient := createTestClient(splunkServer.URL)
 
 		_, err := testClient.CreateToken(t.Context(),
-			&HECToken{
-				Spec: &v1alpha1.SplunkTokenSpec{
+			HECToken{
+				Spec: v1alpha1.SplunkTokenSpec{
 					Name: "bar"},
 			},
 		)

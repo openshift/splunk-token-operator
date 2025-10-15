@@ -36,7 +36,7 @@ type Client struct {
 // The TokenManager interface defines the necessary functions for interacting with Splunk HEC tokens.
 // For our purposes the manager only needs to create and delete tokens.
 type TokenManager interface {
-	CreateToken(context.Context, *HECToken) (*HECToken, error)
+	CreateToken(context.Context, HECToken) (*HECToken, error)
 	DeleteToken(context.Context, string) error
 }
 
@@ -45,7 +45,7 @@ type TokenManager interface {
 // its value (the auth token itself),
 // and the Splunk indexes the token is able to write to.
 type HECToken struct {
-	Spec  *v1alpha1.SplunkTokenSpec
+	Spec  v1alpha1.SplunkTokenSpec
 	Value string `json:"token,omitempty"`
 }
 
@@ -80,9 +80,7 @@ func NewClient(splunkStack, jwt string) (*Client, error) {
 
 // CreateToken takes a HECToken spec and creates a token on the Splunk instance.
 // The return value for successful token creation is the HECToken with the secret added to the Value field.
-func (c *Client) CreateToken(ctx context.Context, token *HECToken) (*HECToken, error) {
-	// clear Value so Splunk server creates a new token on its own
-	token.Value = ""
+func (c *Client) CreateToken(ctx context.Context, token HECToken) (*HECToken, error) {
 	payload, err := json.Marshal(token.Spec)
 	if err != nil {
 		return nil, err
@@ -103,7 +101,8 @@ func (c *Client) CreateToken(ctx context.Context, token *HECToken) (*HECToken, e
 	defer res.Body.Close()
 
 	decoder := json.NewDecoder(res.Body)
-	if res.StatusCode >= 400 {
+	// skip error handling on 409 and retrieve existing token
+	if res.StatusCode >= 400 && res.StatusCode != http.StatusConflict {
 		response := &errorResponse{}
 		if err := decoder.Decode(response); err != nil {
 			return nil, err
@@ -111,7 +110,6 @@ func (c *Client) CreateToken(ctx context.Context, token *HECToken) (*HECToken, e
 		return nil, response
 	}
 
-	// TODO: probably need retries just in case creation takes a while
 	return c.getToken(ctx, token.Spec.Name)
 }
 

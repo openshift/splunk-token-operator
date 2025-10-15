@@ -18,37 +18,42 @@ package controller
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
-	"github.com/openshift/splunk-token-operator/config"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	stv1alpha1 "github.com/openshift/splunk-token-operator/api/v1alpha1"
+	"github.com/openshift/splunk-token-operator/config"
 	splunkapi "github.com/openshift/splunk-token-operator/internal/splunk"
 )
 
 var request = reconcile.Request{
 	NamespacedName: types.NamespacedName{
 		Namespace: "test-namespace",
-		Name:      config.TokenSecretName,
+		Name:      "cluster",
 	},
 }
 
 func TestReconcile(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := stv1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatalf("error adding SplunkToken to Scheme: %s", err)
-	}
+	utilruntime.Must(stv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	t.Run("exits early if the token is not present", func(t *testing.T) {
 		fakeClient := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
@@ -70,23 +75,9 @@ func TestReconcile(t *testing.T) {
 	})
 
 	t.Run("deletes external resources and removes finalizer when object is being deleted", func(t *testing.T) {
-		splunkToken := stv1alpha1.SplunkToken{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "SplunkToken",
-				APIVersion: "splunktoken.managed.openshift.io/v1alpha1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: "test-namespace",
-				Name:      config.TokenSecretName,
-				DeletionTimestamp: &metav1.Time{
-					Time: time.Now(),
-				},
-			},
-			Spec: stv1alpha1.SplunkTokenSpec{
-				Name: "internal-cluster-id",
-			},
-		}
-		controllerutil.AddFinalizer(&splunkToken, config.TokenFinalizer)
+		splunkToken := testSplunkToken()
+		deleteTime := metav1.Now()
+		splunkToken.DeletionTimestamp = &deleteTime
 
 		fakeClient := fakeclient.NewClientBuilder().
 			WithScheme(scheme).
@@ -119,21 +110,8 @@ func TestReconcile(t *testing.T) {
 	})
 
 	t.Run("deletes SplunkToken object if past rotation time", func(t *testing.T) {
-		splunkToken := stv1alpha1.SplunkToken{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "SplunkToken",
-				APIVersion: "splunktoken.managed.openshift.io/v1alpha1",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace:         "test-namespace",
-				Name:              config.TokenSecretName,
-				CreationTimestamp: metav1.NewTime(time.Now().Add(-3 * time.Hour)),
-			},
-			Spec: stv1alpha1.SplunkTokenSpec{
-				Name: "internal-cluster-id",
-			},
-		}
-		controllerutil.AddFinalizer(&splunkToken, config.TokenFinalizer)
+		splunkToken := testSplunkToken()
+		splunkToken.CreationTimestamp = metav1.NewTime(time.Now().Add(-3 * time.Hour))
 
 		fakeClient := fakeclient.NewClientBuilder().
 			WithScheme(scheme).
@@ -170,6 +148,67 @@ func TestReconcile(t *testing.T) {
 			t.Error("SplunkToken object should have DeletionTimestamp")
 		}
 	})
+
+	t.Run("creates new token if Secret does not exist", func(t *testing.T) {
+		splunkToken := testSplunkToken()
+
+		fakeClient := fakeclient.NewClientBuilder().
+			WithScheme(scheme).
+			WithRuntimeObjects(&splunkToken).
+			Build()
+
+		mockSplunk := mockSplunkClient{
+			create: createSuccess,
+			delete: deleteErrorIfCalled,
+		}
+
+		splunkConfig := config.Splunk{
+			TokenMaxAge: time.Hour,
+			URI:         "<splunk-collector-uri>",
+		}
+
+		reconciler := SplunkTokenReconciler{
+			Client:       fakeClient,
+			Scheme:       scheme,
+			SplunkApi:    &mockSplunk,
+			SplunkConfig: splunkConfig,
+		}
+
+		if _, err := reconciler.Reconcile(t.Context(), request); err != nil {
+			t.Errorf("unexpected error during reconcile: %s", err)
+		}
+
+		if !mockSplunk.createCalled {
+			t.Error("should have called CreateToken")
+		}
+
+		var hecSecret corev1.Secret
+		err := fakeClient.Get(t.Context(),
+			types.NamespacedName{
+				Namespace: request.Namespace,
+				Name:      config.OwnedObjectName,
+			},
+			&hecSecret)
+		if err != nil {
+			t.Errorf("error getting secret: %s", err)
+		}
+
+		// base64 encoding of this outputs.conf:
+		//
+		//     [httpout]
+		//     httpEventCollectorToken = <guid-value>
+		//     uri = <splunk-collector-uri>
+		wantStr := "W2h0dHBvdXRdCmh0dHBFdmVudENvbGxlY3RvclRva2VuID0gPGd1aWQtdmFsdWU+CnVyaSA9IDxzcGx1bmstY29sbGVjdG9yLXVyaT4="
+		if gotData, ok := hecSecret.Data["outputs.conf"]; !ok {
+			keys := slices.Sorted(maps.Keys(hecSecret.Data))
+			t.Errorf("token not stored on correct key\nwant: %s\ngot: %v", "outputs.conf", keys)
+		} else {
+			gotStr := base64.StdEncoding.EncodeToString(gotData)
+			if gotStr != wantStr {
+				t.Errorf("secret data not formatted correctly\ngot: %s\nwant: %s", gotStr, wantStr)
+			}
+		}
+	})
 }
 
 type errorClient struct {
@@ -182,23 +221,35 @@ func (e errorClient) Get(ctx context.Context, key client.ObjectKey, obj client.O
 }
 
 func objectNotFound() *kerrors.StatusError {
-	return kerrors.NewNotFound(schema.GroupResource{}, config.TokenSecretName)
+	return kerrors.NewNotFound(schema.GroupResource{}, config.OwnedObjectName)
 }
 
 type mockSplunkClient struct {
 	splunkapi.TokenManager
 
+	createCalled bool
 	deleteCalled bool
 	create       func() (*splunkapi.HECToken, error)
 	delete       func() error
 }
 
-func (m *mockSplunkClient) CreateToken(ctx context.Context, token *splunkapi.HECToken) (*splunkapi.HECToken, error) {
+func (m *mockSplunkClient) CreateToken(ctx context.Context, token splunkapi.HECToken) (*splunkapi.HECToken, error) {
+	m.createCalled = true
 	return m.create()
 }
 func (m *mockSplunkClient) DeleteToken(ctx context.Context, name string) error {
 	m.deleteCalled = true
 	return m.delete()
+}
+
+func createSuccess() (*splunkapi.HECToken, error) {
+	token := splunkapi.HECToken{
+		Spec: stv1alpha1.SplunkTokenSpec{
+			Name: "<internal-cluster-id>",
+		},
+		Value: "<guid-value>",
+	}
+	return &token, nil
 }
 
 func createErrorIfCalled() (*splunkapi.HECToken, error) {
@@ -211,4 +262,19 @@ func deleteSuccess() error {
 
 func deleteErrorIfCalled() error {
 	return errors.New("should not call DeleteToken")
+}
+
+func testSplunkToken() stv1alpha1.SplunkToken {
+	token := stv1alpha1.SplunkToken{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:         request.Namespace,
+			Name:              request.Name,
+			CreationTimestamp: metav1.Now(),
+		},
+		Spec: stv1alpha1.SplunkTokenSpec{
+			Name: "<internal-cluster-id>",
+		},
+	}
+	controllerutil.AddFinalizer(&token, config.TokenFinalizer)
+	return token
 }
