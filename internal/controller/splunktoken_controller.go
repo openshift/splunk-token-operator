@@ -40,12 +40,14 @@ type SplunkTokenReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
 	SplunkApi    splunkapi.TokenManager
-	SplunkConfig config.Splunk
+	SplunkConfig config.General
 }
 
 // +kubebuilder:rbac:groups=splunktoken.managed.openshift.io,resources=splunktokens,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=splunktoken.managed.openshift.io,resources=splunktokens/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=splunktoken.managed.openshift.io,resources=splunktokens/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=create;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,resourceNames=splunk-hec-token,verbs=get;delete
 
 // Reconcile takes the following actions depending on the state of the SplunkToken:
 //   - If the SplunkToken no longer exists there is nothing to do and Reconcile ends.
@@ -58,6 +60,7 @@ type SplunkTokenReconciler struct {
 //     and a SyncSet is created to push the token to the managed cluster.
 func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx).WithValues("namespace", req.Namespace)
+	log.Info("reconciling splunk token")
 
 	var tokenObject stv1alpha1.SplunkToken
 	err := r.Get(ctx, req.NamespacedName, &tokenObject)
@@ -116,6 +119,10 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			return ctrl.Result{}, err
 		}
 		r.newSecretObject(req.Namespace, hecToken.Value, &tokenSecret)
+		if err := controllerutil.SetControllerReference(&tokenObject, &tokenSecret, r.Scheme); err != nil {
+			return ctrl.Result{}, err
+		}
+
 		if err := r.Create(ctx, &tokenSecret); err != nil {
 			log.Error(err, "error creating Secret object")
 			return ctrl.Result{}, err
@@ -132,6 +139,7 @@ func (r *SplunkTokenReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&stv1alpha1.SplunkToken{}).
 		Named("splunktoken").
+		Owns(&corev1.Secret{}).
 		Complete(r)
 }
 
@@ -141,10 +149,14 @@ func (r *SplunkTokenReconciler) newSecretObject(namespace, tokenValue string, se
 	outputsConf := `[httpout]
 httpEventCollectorToken = %s
 uri = %s`
-	data := fmt.Appendf([]byte{}, outputsConf, tokenValue, r.SplunkConfig.URI)
+	data := fmt.Appendf([]byte{}, outputsConf, tokenValue, r.collectorUri())
 	secret.Data = map[string][]byte{
 		config.SecretDataKey: data,
 	}
 	truePtr := true
 	secret.Immutable = &truePtr
+}
+
+func (r *SplunkTokenReconciler) collectorUri() string {
+	return fmt.Sprintf("https://http-inputs-%s.splunkcloud.com:443", r.SplunkConfig.SplunkInstance)
 }

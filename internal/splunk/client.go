@@ -11,13 +11,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/openshift/splunk-token-operator/api/v1alpha1"
 )
 
 const (
 	acsHostname         string = "https://admin.splunk.com"
-	tokenManagementPath string = "/adminconfig/v2/inputs/http-event-collectors" // #nosec G101 -- not a credential
+	tokenManagementPath string = "adminconfig/v2/inputs/http-event-collectors" // #nosec G101 -- not a credential
 
 	missingSplunkError string = "missing Splunk instance name"
 	missingJWTError    string = "missing Splunk authentication token"
@@ -81,6 +82,9 @@ func NewClient(splunkStack, jwt string) (*Client, error) {
 // CreateToken takes a HECToken spec and creates a token on the Splunk instance.
 // The return value for successful token creation is the HECToken with the secret added to the Value field.
 func (c *Client) CreateToken(ctx context.Context, token HECToken) (*HECToken, error) {
+	if token.Spec.DefaultIndex != "" && !slices.Contains(token.Spec.AllowedIndexes, token.Spec.DefaultIndex) {
+		token.Spec.AllowedIndexes = append(token.Spec.AllowedIndexes, token.Spec.DefaultIndex)
+	}
 	payload, err := json.Marshal(token.Spec)
 	if err != nil {
 		return nil, err

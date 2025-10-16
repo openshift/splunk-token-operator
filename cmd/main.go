@@ -37,8 +37,11 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	"github.com/BurntSushi/toml"
 	splunktokenv1alpha1 "github.com/openshift/splunk-token-operator/api/v1alpha1"
+	"github.com/openshift/splunk-token-operator/config"
 	"github.com/openshift/splunk-token-operator/internal/controller"
+	splunkapi "github.com/openshift/splunk-token-operator/internal/splunk"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -64,6 +67,8 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
+	var configFile string
+	flag.StringVar(&configFile, "config", config.ConfigFile, "The path to the config file for the operator.")
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -202,10 +207,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: add config to reconciler setup process
+	var splunkConfig config.Splunk
+	if _, err := toml.DecodeFile(configFile, &splunkConfig); err != nil {
+		setupLog.Error(err, "error parsing operator config", "config file", configFile)
+		os.Exit(1)
+	}
+
+	splunkApiKey := os.Getenv(config.ApiTokenEnvKey)
+	splunkClient, err := splunkapi.NewClient(splunkConfig.SplunkInstance, splunkApiKey)
+	if err != nil {
+		setupLog.Error(err, "error creating Splunk API client")
+		os.Exit(1)
+	}
+
 	if err := (&controller.SplunkTokenReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		SplunkConfig: splunkConfig.General,
+		SplunkApi:    splunkClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SplunkToken")
 		os.Exit(1)

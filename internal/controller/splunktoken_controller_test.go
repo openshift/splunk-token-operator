@@ -123,9 +123,7 @@ func TestReconcile(t *testing.T) {
 			delete: deleteSuccess,
 		}
 
-		splunkConfig := config.Splunk{
-			TokenMaxAge: time.Hour,
-		}
+		splunkConfig := config.General{TokenMaxAge: time.Hour}
 
 		reconciler := SplunkTokenReconciler{
 			Client:       fakeClient,
@@ -162,9 +160,9 @@ func TestReconcile(t *testing.T) {
 			delete: deleteErrorIfCalled,
 		}
 
-		splunkConfig := config.Splunk{
-			TokenMaxAge: time.Hour,
-			URI:         "<splunk-collector-uri>",
+		splunkConfig := config.General{
+			TokenMaxAge:    time.Hour,
+			SplunkInstance: "<splunk-collector-uri>",
 		}
 
 		reconciler := SplunkTokenReconciler{
@@ -197,8 +195,8 @@ func TestReconcile(t *testing.T) {
 		//
 		//     [httpout]
 		//     httpEventCollectorToken = <guid-value>
-		//     uri = <splunk-collector-uri>
-		wantStr := "W2h0dHBvdXRdCmh0dHBFdmVudENvbGxlY3RvclRva2VuID0gPGd1aWQtdmFsdWU+CnVyaSA9IDxzcGx1bmstY29sbGVjdG9yLXVyaT4="
+		//     uri = https://http-inputs-<splunk-collector-uri>.splunkcloud.com:443
+		wantStr := "W2h0dHBvdXRdCmh0dHBFdmVudENvbGxlY3RvclRva2VuID0gPGd1aWQtdmFsdWU+CnVyaSA9IGh0dHBzOi8vaHR0cC1pbnB1dHMtPHNwbHVuay1jb2xsZWN0b3ItdXJpPi5zcGx1bmtjbG91ZC5jb206NDQz"
 		if gotData, ok := hecSecret.Data["outputs.conf"]; !ok {
 			keys := slices.Sorted(maps.Keys(hecSecret.Data))
 			t.Errorf("token not stored on correct key\nwant: %s\ngot: %v", "outputs.conf", keys)

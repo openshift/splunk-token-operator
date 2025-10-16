@@ -54,12 +54,14 @@ func TestCreateClient(t *testing.T) {
 
 func TestCreateToken(t *testing.T) {
 	t.Run("request is formatted properly", func(t *testing.T) {
-		postPath := "/mock_splunk/adminconfig/v2/inputs/http-event-collectors"
-		getPath := "/mock_splunk/adminconfig/v2/inputs/http-event-collectors/bar"
-		wantAuth := "Bearer foo"
-		wantContent := "application/json"
-		wantBody := `{"name":"bar"}`
-		var serverCalls uint
+		var (
+			postPath    = "/mock_splunk/adminconfig/v2/inputs/http-event-collectors"
+			getPath     = "/mock_splunk/adminconfig/v2/inputs/http-event-collectors/bar"
+			wantAuth    = "Bearer foo"
+			wantContent = "application/json"
+			wantBody    = `{"name":"bar"}`
+			serverCalls uint
+		)
 
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			serverCalls += 1
@@ -149,10 +151,13 @@ func TestCreateToken(t *testing.T) {
 	})
 
 	t.Run("creates with default and allowed indexes", func(t *testing.T) {
-		wantName := "bar"
-		wantIndexes := []string{"audit_index", "other_index"}
-		wantDefault := "audit_index"
-		wantValue := "UUID-VALUE"
+		var (
+			wantName    = "bar"
+			wantIndexes = []string{"audit_index", "other_index"}
+			wantDefault = "audit_index"
+			wantValue   = "UUID-VALUE"
+		)
+
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var createResponse string
 			switch r.Method {
@@ -171,7 +176,7 @@ func TestCreateToken(t *testing.T) {
 		token := HECToken{
 			Spec: v1alpha1.SplunkTokenSpec{
 				Name:           "bar",
-				AllowedIndexes: []string{"audit_index", "other_index"},
+				AllowedIndexes: []string{"other_index"},
 				DefaultIndex:   "audit_index",
 			},
 		}
@@ -195,6 +200,7 @@ func TestCreateToken(t *testing.T) {
 	})
 	t.Run("handles errors", func(t *testing.T) {
 		wantError := "received error response 400-oh-no-it-broke: halt and catch fire"
+
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			errorJSON := `{"code":"400-oh-no-it-broke","message":"halt and catch fire"}`
 			w.WriteHeader(http.StatusBadRequest)
@@ -221,11 +227,13 @@ func TestCreateToken(t *testing.T) {
 
 func TestDeleteToken(t *testing.T) {
 	t.Run("request is formatted properly", func(t *testing.T) {
-		tokenName := "bar"
-		wantMethod := http.MethodDelete
-		wantPath := "/mock_splunk/adminconfig/v2/inputs/http-event-collectors/bar"
-		wantAuth := "Bearer foo"
-		var serverCalls uint
+		var (
+			tokenName   = "bar"
+			wantMethod  = http.MethodDelete
+			wantPath    = "/mock_splunk/adminconfig/v2/inputs/http-event-collectors/bar"
+			wantAuth    = "Bearer foo"
+			serverCalls uint
+		)
 
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			serverCalls += 1
@@ -269,6 +277,7 @@ func TestDeleteToken(t *testing.T) {
 
 	t.Run("handles deletion errors", func(t *testing.T) {
 		wantError := "received error response 400-oh-no-it-broke: halt and catch fire"
+
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			errorJSON := `{"code":"400-oh-no-it-broke","message":"halt and catch fire"}`
 			w.WriteHeader(http.StatusBadRequest)
