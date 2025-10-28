@@ -163,8 +163,8 @@ build: manifests generate fmt vet ## Build manager binary.
 	go build -o bin/manager cmd/main.go
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go
+run: manifests container-generate fmt vet ## Run a controller from your host.
+	go run ./cmd/main.go --config=config/local/config.toml
 
 .PHONY: build-image
 build-image:
@@ -177,15 +177,10 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
-.PHONY: build-crc-image
-build-crc-image:
-	${CONTAINER_ENGINE} build --pull -f $(OPERATOR_DOCKERFILE) -t $(CRC_IMG) .
-
-.PHONY: build-crc-installer
-build-crc-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
+.PHONY: dev-resources
+dev-resources: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
 	mkdir -p dist
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${CRC_IMG}
-	$(KUSTOMIZE) build config/crc > dist/crc.yaml
+	$(KUSTOMIZE) build config/local > dist/local.yaml
 
 ##@ Deployment
 

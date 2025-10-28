@@ -11,6 +11,7 @@ rules:
   verbs:
   - create
   - list
+  - watch
 - apiGroups:
   - ""
   resourceNames:
@@ -20,10 +21,6 @@ rules:
   verbs:
   - delete
   - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - splunktoken.managed.openshift.io
   resources:

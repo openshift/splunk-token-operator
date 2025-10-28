@@ -1,0 +1,12 @@
+[General]
+SplunkInstance = "osdsecuritylogs"
+TokenMaxAge = "24h"                # decodes to a Go time.Duration
+
+[Classic]
+DefaultIndex = "development"
+# DefaultIndex will be added to this list when the token is created if it's not already there
+AllowedIndexes = []
+
+[HCP]
+DefaultIndex = "development"
+AllowedIndexes = []
