@@ -14,13 +14,13 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"./api/v1alpha1.SplunkToken":       schema__api_v1alpha1_SplunkToken(ref),
-		"./api/v1alpha1.SplunkTokenSpec":   schema__api_v1alpha1_SplunkTokenSpec(ref),
-		"./api/v1alpha1.SplunkTokenStatus": schema__api_v1alpha1_SplunkTokenStatus(ref),
+		"github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkToken":       schema_openshift_splunk_token_operator_api_v1alpha1_SplunkToken(ref),
+		"github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenSpec":   schema_openshift_splunk_token_operator_api_v1alpha1_SplunkTokenSpec(ref),
+		"github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenStatus": schema_openshift_splunk_token_operator_api_v1alpha1_SplunkTokenStatus(ref),
 	}
 }
 
-func schema__api_v1alpha1_SplunkToken(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_openshift_splunk_token_operator_api_v1alpha1_SplunkToken(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -50,24 +50,24 @@ func schema__api_v1alpha1_SplunkToken(ref common.ReferenceCallback) common.OpenA
 					"spec": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("./api/v1alpha1.SplunkTokenSpec"),
+							Ref:     ref("github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("./api/v1alpha1.SplunkTokenStatus"),
+							Ref:     ref("github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"./api/v1alpha1.SplunkTokenSpec", "./api/v1alpha1.SplunkTokenStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenSpec", "github.com/openshift/splunk-token-operator/api/v1alpha1.SplunkTokenStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
-func schema__api_v1alpha1_SplunkTokenSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_openshift_splunk_token_operator_api_v1alpha1_SplunkTokenSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -111,7 +111,7 @@ func schema__api_v1alpha1_SplunkTokenSpec(ref common.ReferenceCallback) common.O
 	}
 }
 
-func schema__api_v1alpha1_SplunkTokenStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_openshift_splunk_token_operator_api_v1alpha1_SplunkTokenStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
