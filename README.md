@@ -92,30 +92,46 @@ the project, i.e.:
 kubectl apply -f https://raw.githubusercontent.com/<org>/splunk-token-operator/<tag or branch>/dist/install.yaml
 ```
 
-### By providing a Helm Chart
-
-1. Build the chart using the optional helm plugin
-
-```sh
-operator-sdk edit --plugins=helm/v1-alpha
-```
-
-2. See that a chart was generated under 'dist/chart', and users
-can obtain this solution from there.
-
-**NOTE:** If you change the project, you need to update the Helm Chart
-using the same command above to sync the latest changes. Furthermore,
-if you create webhooks, you need to use the above command with
-the '--force' flag and manually ensure that any custom configuration
-previously added to 'dist/chart/values.yaml' or 'dist/chart/manager/manager.yaml'
-is manually re-applied afterwards.
-
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
+> [!TIP]
+> Run `make help` for more information on all potential `make` targets
 
 More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+
+## Testing
+
+### Running Locally
+
+#### Prerequisites
+
+* The [project dependencies](/.tool-versions).
+* [OpenShift Local](https://developers.redhat.com/products/openshift-local/overview),
+[minikube](https://minikube.sigs.k8s.io/docs/), or any Kubernetes cluster where you have sufficient permissions.
+* A Splunk Cloud authentication token with permissions to manage HEC tokens.
+
+#### Steps
+
+1. Start or log in to your cluster.
+1. Create the required Kubernetes resources and apply them to your cluster.
+    ```sh
+    make dev-resources && kubectl apply -f dist/local.yaml
+    ```
+1. Add the Splunk token to your environment
+    ```sh
+    export SPLUNK_API_TOKEN=<splunk-token>
+    ```
+1. Run the operator.
+    ```sh
+    make run
+    ```
+
+You should see console output from the operator.
+Since the local resources include a SplunkToken object the operator will reconcile it immediately.
+
+> [!NOTE]
+> The operator will use the [local configuration file](/config/local/config.toml).
+> Change this file to meet your specific needs.
 
 ## License
 

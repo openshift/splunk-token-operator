@@ -74,14 +74,38 @@ func schema_openshift_splunk_token_operator_api_v1alpha1_SplunkTokenSpec(ref com
 				Description: "SplunkTokenSpec defines the desired state of SplunkToken.",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"tokenName": {
+					"name": {
 						SchemaProps: spec.SchemaProps{
-							Description: "TokenName is the name of the cluster's HTTP Event Collector token on the Splunk instance.",
+							Description: "Name is the name of the cluster's HTTP Event Collector token on the Splunk instance.",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
+					"defaultIndex": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DefaultIndex is the default Splunk index that logs are sent to.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"allowedIndexes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AllowedIndexes is a list of other indexes that this token is allowed to send logs to.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 				},
+				Required: []string{"name"},
 			},
 		},
 	}

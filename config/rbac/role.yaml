@@ -5,6 +5,23 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resourceNames:
+  - splunk-hec-token
+  resources:
+  - secrets
+  verbs:
+  - delete
+  - get
+- apiGroups:
   - splunktoken.managed.openshift.io
   resources:
   - splunktokens

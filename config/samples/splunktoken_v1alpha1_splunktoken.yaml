@@ -4,6 +4,10 @@ metadata:
   labels:
     app.kubernetes.io/name: splunk-token-operator
     app.kubernetes.io/managed-by: kustomize
-  name: splunktoken-sample
+  name: splunktoken-example
 spec:
-  # TODO(user): Add fields here
+  name: "example-token"
+  defaultIndex: "example-splunk-index"
+  allowedIndexes:
+    - "another-example-index"
+    - "third-example-index"

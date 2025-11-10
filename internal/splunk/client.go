@@ -11,11 +11,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
+
+	"github.com/openshift/splunk-token-operator/api/v1alpha1"
 )
 
 const (
 	acsHostname         string = "https://admin.splunk.com"
-	tokenManagementPath string = "/adminconfig/v2/inputs/http-event-collectors" // #nosec G101 -- not a credential
+	tokenManagementPath string = "adminconfig/v2/inputs/http-event-collectors" // #nosec G101 -- not a credential
 
 	missingSplunkError string = "missing Splunk instance name"
 	missingJWTError    string = "missing Splunk authentication token"
@@ -34,7 +37,7 @@ type Client struct {
 // The TokenManager interface defines the necessary functions for interacting with Splunk HEC tokens.
 // For our purposes the manager only needs to create and delete tokens.
 type TokenManager interface {
-	CreateToken(context.Context, *HECToken) (*HECToken, error)
+	CreateToken(context.Context, HECToken) (*HECToken, error)
 	DeleteToken(context.Context, string) error
 }
 
@@ -43,10 +46,8 @@ type TokenManager interface {
 // its value (the auth token itself),
 // and the Splunk indexes the token is able to write to.
 type HECToken struct {
-	Name           string   `json:"name"`
-	DefaultIndex   string   `json:"defaultIndex,omitempty"`
-	AllowedIndexes []string `json:"allowedIndexes,omitempty"`
-	Value          string   `json:"token,omitempty"`
+	Spec  v1alpha1.SplunkTokenSpec
+	Value string `json:"token,omitempty"`
 }
 
 type tokenResponse struct {
@@ -80,10 +81,11 @@ func NewClient(splunkStack, jwt string) (*Client, error) {
 
 // CreateToken takes a HECToken spec and creates a token on the Splunk instance.
 // The return value for successful token creation is the HECToken with the secret added to the Value field.
-func (c *Client) CreateToken(ctx context.Context, token *HECToken) (*HECToken, error) {
-	// clear Value so Splunk server creates a new token on its own
-	token.Value = ""
-	payload, err := json.Marshal(token)
+func (c *Client) CreateToken(ctx context.Context, token HECToken) (*HECToken, error) {
+	if token.Spec.DefaultIndex != "" && !slices.Contains(token.Spec.AllowedIndexes, token.Spec.DefaultIndex) {
+		token.Spec.AllowedIndexes = append(token.Spec.AllowedIndexes, token.Spec.DefaultIndex)
+	}
+	payload, err := json.Marshal(token.Spec)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +105,8 @@ func (c *Client) CreateToken(ctx context.Context, token *HECToken) (*HECToken, e
 	defer res.Body.Close()
 
 	decoder := json.NewDecoder(res.Body)
-	if res.StatusCode >= 400 {
+	// skip error handling on 409 and retrieve existing token
+	if res.StatusCode >= 400 && res.StatusCode != http.StatusConflict {
 		response := &errorResponse{}
 		if err := decoder.Decode(response); err != nil {
 			return nil, err
@@ -111,8 +114,7 @@ func (c *Client) CreateToken(ctx context.Context, token *HECToken) (*HECToken, e
 		return nil, response
 	}
 
-	// TODO: probably need retries just in case creation takes a while
-	return c.getToken(ctx, token.Name)
+	return c.getToken(ctx, token.Spec.Name)
 }
 
 // DeleteToken deletes the named token, returning any error from the Splunk server.
@@ -133,7 +135,10 @@ func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusAccepted {
+	if res.StatusCode == http.StatusNotFound {
+		// HEC token doesn't exist so we're done here
+		return nil
+	} else if res.StatusCode != http.StatusAccepted {
 		decoder := json.NewDecoder(res.Body)
 		response := &errorResponse{}
 		if err := decoder.Decode(response); err != nil {
@@ -179,28 +184,4 @@ func (c *Client) getToken(ctx context.Context, name string) (*HECToken, error) {
 
 func (e *errorResponse) Error() string {
 	return fmt.Sprintf("received error response %s: %s", e.Code, e.Message)
-}
-
-func (t *HECToken) UnmarshalJSON(data []byte) error {
-	var temp struct {
-		Spec struct {
-			AllowedIndexes    []string `json:"allowedIndexes,omitempty"`
-			DefaultIndex      string   `json:"defaultIndex,omitempty"`
-			DefaultSource     string   `json:"defaultSource,omitempty"`
-			DefaultSourcetype string   `json:"defaultSourcetype,omitempty"`
-			Disabled          bool     `json:"disabled,omitempty"`
-			Name              string   `json:"name"`
-			UseAck            bool     `json:"useAck,omitempty"`
-		} `json:"spec"`
-		Value string `json:"token"`
-	}
-	err := json.Unmarshal(data, &temp)
-	if err != nil {
-		return err
-	}
-	t.Name = temp.Spec.Name
-	t.DefaultIndex = temp.Spec.DefaultIndex
-	t.AllowedIndexes = temp.Spec.AllowedIndexes
-	t.Value = temp.Value
-	return nil
 }

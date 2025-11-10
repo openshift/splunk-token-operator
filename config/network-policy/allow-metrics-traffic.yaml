@@ -12,7 +12,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      control-plane: controller-manager
+      control-plane: splunk-token-operator-controller
       app.kubernetes.io/name: splunk-token-operator
   policyTypes:
     - Ingress

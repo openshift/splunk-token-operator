@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/openshift/splunk-token-operator/api/v1alpha1"
 )
 
 func TestCreateClient(t *testing.T) {
@@ -52,12 +54,14 @@ func TestCreateClient(t *testing.T) {
 
 func TestCreateToken(t *testing.T) {
 	t.Run("request is formatted properly", func(t *testing.T) {
-		postPath := "/mock_splunk/adminconfig/v2/inputs/http-event-collectors"
-		getPath := "/mock_splunk/adminconfig/v2/inputs/http-event-collectors/bar"
-		wantAuth := "Bearer foo"
-		wantContent := "application/json"
-		wantBody := `{"name":"bar"}`
-		var serverCalls uint
+		var (
+			postPath    = "/mock_splunk/adminconfig/v2/inputs/http-event-collectors"
+			getPath     = "/mock_splunk/adminconfig/v2/inputs/http-event-collectors/bar"
+			wantAuth    = "Bearer foo"
+			wantContent = "application/json"
+			wantBody    = `{"name":"bar"}`
+			serverCalls uint
+		)
 
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			serverCalls += 1
@@ -98,7 +102,13 @@ func TestCreateToken(t *testing.T) {
 
 		testClient := createTestClient(splunkServer.URL)
 
-		testClient.CreateToken(t.Context(), &HECToken{Name: "bar"})
+		testClient.CreateToken(t.Context(),
+			HECToken{
+				Spec: v1alpha1.SplunkTokenSpec{
+					Name: "bar",
+				},
+			},
+		)
 		if serverCalls == 0 {
 			t.Errorf("no request made to test server")
 		}
@@ -115,32 +125,39 @@ func TestCreateToken(t *testing.T) {
 
 		testClient := createTestClient(splunkServer.URL)
 
-		token := &HECToken{Name: tokenName}
-		token, err := testClient.CreateToken(t.Context(), token)
+		token := HECToken{
+			Spec: v1alpha1.SplunkTokenSpec{
+				Name: tokenName,
+			},
+		}
+		newToken, err := testClient.CreateToken(t.Context(), token)
 		if err != nil {
 			t.Errorf("error creating token: %s", err)
 		}
 
 		// creation response from Splunk is just the token's name
-		if token.Name != tokenName {
-			t.Errorf("expected Name='%s' but got '%s'", tokenName, token.Name)
+		if newToken.Spec.Name != tokenName {
+			t.Errorf("expected Name='%s' but got '%s'", tokenName, token.Spec.Name)
 		}
-		if token.Value != "" {
+		if newToken.Value != "" {
 			t.Errorf("expected empty Value but got %s", token.Value)
 		}
-		if token.DefaultIndex != "" {
-			t.Errorf("expected empty DefaultIndex but got %s", token.DefaultIndex)
+		if newToken.Spec.DefaultIndex != "" {
+			t.Errorf("expected empty DefaultIndex but got %s", token.Spec.DefaultIndex)
 		}
-		if token.AllowedIndexes != nil {
-			t.Errorf("expected empty AllowedIndexes but got %v", token.AllowedIndexes)
+		if newToken.Spec.AllowedIndexes != nil {
+			t.Errorf("expected empty AllowedIndexes but got %v", token.Spec.AllowedIndexes)
 		}
 	})
 
 	t.Run("creates with default and allowed indexes", func(t *testing.T) {
-		wantName := "bar"
-		wantIndexes := []string{"audit_index", "other_index"}
-		wantDefault := "audit_index"
-		wantValue := "UUID-VALUE"
+		var (
+			wantName    = "bar"
+			wantIndexes = []string{"audit_index", "other_index"}
+			wantDefault = "audit_index"
+			wantValue   = "UUID-VALUE"
+		)
+
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var createResponse string
 			switch r.Method {
@@ -156,31 +173,34 @@ func TestCreateToken(t *testing.T) {
 
 		testClient := createTestClient(splunkServer.URL)
 
-		token := &HECToken{
-			Name:           "bar",
-			AllowedIndexes: []string{"audit_index", "other_index"},
-			DefaultIndex:   "audit_index",
+		token := HECToken{
+			Spec: v1alpha1.SplunkTokenSpec{
+				Name:           "bar",
+				AllowedIndexes: []string{"other_index"},
+				DefaultIndex:   "audit_index",
+			},
 		}
-		token, err := testClient.CreateToken(t.Context(), token)
+		newToken, err := testClient.CreateToken(t.Context(), token)
 		if err != nil {
 			t.Errorf("error creating token: %s", err)
 		}
 
-		if token.Name != wantName {
-			t.Errorf("expected Name '%s' but got '%s'", wantName, token.Name)
+		if newToken.Spec.Name != wantName {
+			t.Errorf("expected Name '%s' but got '%s'", wantName, token.Spec.Name)
 		}
-		if token.Value != wantValue {
+		if newToken.Value != wantValue {
 			t.Errorf("expected Value %s but got %s", wantValue, token.Value)
 		}
-		if token.DefaultIndex != wantDefault {
-			t.Errorf("expected DefaultIndex %s but got %s", wantDefault, token.DefaultIndex)
+		if newToken.Spec.DefaultIndex != wantDefault {
+			t.Errorf("expected DefaultIndex %s but got %s", wantDefault, token.Spec.DefaultIndex)
 		}
-		if !reflect.DeepEqual(wantIndexes, token.AllowedIndexes) {
-			t.Errorf("expected AllowedIndexes %v but got %v", wantIndexes, token.AllowedIndexes)
+		if !reflect.DeepEqual(wantIndexes, newToken.Spec.AllowedIndexes) {
+			t.Errorf("expected AllowedIndexes %v but got %v", wantIndexes, token.Spec.AllowedIndexes)
 		}
 	})
 	t.Run("handles errors", func(t *testing.T) {
 		wantError := "received error response 400-oh-no-it-broke: halt and catch fire"
+
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			errorJSON := `{"code":"400-oh-no-it-broke","message":"halt and catch fire"}`
 			w.WriteHeader(http.StatusBadRequest)
@@ -190,7 +210,12 @@ func TestCreateToken(t *testing.T) {
 
 		testClient := createTestClient(splunkServer.URL)
 
-		_, err := testClient.CreateToken(t.Context(), &HECToken{Name: "bar"})
+		_, err := testClient.CreateToken(t.Context(),
+			HECToken{
+				Spec: v1alpha1.SplunkTokenSpec{
+					Name: "bar"},
+			},
+		)
 		if err == nil {
 			t.Fatal("expected error but did not receive one")
 		}
@@ -202,11 +227,13 @@ func TestCreateToken(t *testing.T) {
 
 func TestDeleteToken(t *testing.T) {
 	t.Run("request is formatted properly", func(t *testing.T) {
-		tokenName := "bar"
-		wantMethod := http.MethodDelete
-		wantPath := "/mock_splunk/adminconfig/v2/inputs/http-event-collectors/bar"
-		wantAuth := "Bearer foo"
-		var serverCalls uint
+		var (
+			tokenName   = "bar"
+			wantMethod  = http.MethodDelete
+			wantPath    = "/mock_splunk/adminconfig/v2/inputs/http-event-collectors/bar"
+			wantAuth    = "Bearer foo"
+			serverCalls uint
+		)
 
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			serverCalls += 1
@@ -250,6 +277,7 @@ func TestDeleteToken(t *testing.T) {
 
 	t.Run("handles deletion errors", func(t *testing.T) {
 		wantError := "received error response 400-oh-no-it-broke: halt and catch fire"
+
 		splunkServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			errorJSON := `{"code":"400-oh-no-it-broke","message":"halt and catch fire"}`
 			w.WriteHeader(http.StatusBadRequest)
