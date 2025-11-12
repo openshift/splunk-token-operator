@@ -26,6 +26,8 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/BurntSushi/toml"
+	hivev1 "github.com/openshift/hive/apis"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -37,10 +39,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/BurntSushi/toml"
 	splunktokenv1alpha1 "github.com/openshift/splunk-token-operator/api/v1alpha1"
 	"github.com/openshift/splunk-token-operator/config"
-	"github.com/openshift/splunk-token-operator/internal/controller"
+	"github.com/openshift/splunk-token-operator/internal/controller/clusterdeployment"
+	"github.com/openshift/splunk-token-operator/internal/controller/splunktoken"
 	splunkapi "github.com/openshift/splunk-token-operator/internal/splunk"
 	// +kubebuilder:scaffold:imports
 )
@@ -54,6 +56,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(splunktokenv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(hivev1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -220,13 +223,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.SplunkTokenReconciler{
+	if err := (&splunktoken.SplunkTokenReconciler{
 		Client:       mgr.GetClient(),
 		Scheme:       mgr.GetScheme(),
 		SplunkConfig: splunkConfig.General,
 		SplunkApi:    splunkClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SplunkToken")
+		os.Exit(1)
+	}
+	if err := (&clusterdeployment.ClusterDeploymentReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterDeployment")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
