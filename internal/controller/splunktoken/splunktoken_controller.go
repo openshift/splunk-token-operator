@@ -23,8 +23,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -34,6 +34,8 @@ import (
 	"github.com/openshift/splunk-token-operator/config"
 	splunkapi "github.com/openshift/splunk-token-operator/internal/splunk"
 )
+
+const OwnedSecretName string = "splunk-hec-token"
 
 // SplunkTokenReconciler reconciles a SplunkToken object
 type SplunkTokenReconciler struct {
@@ -62,8 +64,13 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	log := logf.FromContext(ctx).WithValues("namespace", req.Namespace)
 	log.Info("reconciling splunk token")
 
-	var tokenObject stv1alpha1.SplunkToken
-	err := r.Get(ctx, req.NamespacedName, &tokenObject)
+	tokenObject := &stv1alpha1.SplunkToken{
+		ObjectMeta: v1.ObjectMeta{
+			Namespace: req.Namespace,
+			Name:      req.Name,
+		},
+	}
+	err := r.Get(ctx, client.ObjectKeyFromObject(tokenObject), tokenObject)
 	if errors.IsNotFound(err) {
 		log.Info("token not found")
 		return ctrl.Result{}, nil
@@ -78,8 +85,8 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			log.Error(err, "error deleting HEC token from Splunk")
 			return ctrl.Result{}, err
 		}
-		controllerutil.RemoveFinalizer(&tokenObject, config.TokenFinalizer)
-		if err := r.Update(ctx, &tokenObject); err != nil {
+		controllerutil.RemoveFinalizer(tokenObject, config.TokenFinalizer)
+		if err := r.Update(ctx, tokenObject); err != nil {
 			log.Error(err, "error removing finalizer")
 			return ctrl.Result{}, err
 		}
@@ -90,22 +97,23 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	tokenRotationDeadline := tokenObject.CreationTimestamp.Add(r.SplunkConfig.TokenMaxAge)
 	if currentTime.After(tokenRotationDeadline) {
 		log.Info("SplunkToken is stale, rotating")
-		if err := r.Delete(ctx, &tokenObject); err != nil {
+		if err := r.Delete(ctx, tokenObject); err != nil {
 			log.Error(err, "error deleting SplunkToken object")
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
 
-	ownedObjectKey := types.NamespacedName{
-		Namespace: req.Namespace,
-		Name:      config.OwnedObjectName,
+	tokenSecret := &corev1.Secret{
+		ObjectMeta: v1.ObjectMeta{
+			Namespace: req.Namespace,
+			Name:      OwnedSecretName,
+		},
 	}
-	var tokenSecret corev1.Secret
-	if err := r.Get(ctx, ownedObjectKey, &tokenSecret); errors.IsNotFound(err) {
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tokenSecret), tokenSecret); errors.IsNotFound(err) {
 		log.Info("token Secret not found, requesting new token from Splunk")
-		if controllerutil.AddFinalizer(&tokenObject, config.TokenFinalizer) {
-			if err := r.Update(ctx, &tokenObject); err != nil {
+		if controllerutil.AddFinalizer(tokenObject, config.TokenFinalizer) {
+			if err := r.Update(ctx, tokenObject); err != nil {
 				return ctrl.Result{}, err
 			}
 			log.Info("finalizer added to SplunkToken")
@@ -118,12 +126,12 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			log.Error(err, "error creating HEC token")
 			return ctrl.Result{}, err
 		}
-		r.newSecretObject(req.Namespace, hecToken.Value, &tokenSecret)
-		if err := controllerutil.SetControllerReference(&tokenObject, &tokenSecret, r.Scheme); err != nil {
+		r.newSecretObject(req.Namespace, hecToken.Value, tokenSecret)
+		if err := controllerutil.SetControllerReference(tokenObject, tokenSecret, r.Scheme); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		if err := r.Create(ctx, &tokenSecret); err != nil {
+		if err := r.Create(ctx, tokenSecret); err != nil {
 			log.Error(err, "error creating Secret object")
 			return ctrl.Result{}, err
 		}
@@ -144,7 +152,7 @@ func (r *SplunkTokenReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *SplunkTokenReconciler) newSecretObject(namespace, tokenValue string, secret *corev1.Secret) {
-	secret.Name = config.OwnedObjectName
+	secret.Name = OwnedSecretName
 	secret.Namespace = namespace
 	outputsConf := `[httpout]
 httpEventCollectorToken = %s

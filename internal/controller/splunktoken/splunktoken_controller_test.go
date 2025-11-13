@@ -184,7 +184,7 @@ func TestReconcile(t *testing.T) {
 		err := fakeClient.Get(t.Context(),
 			types.NamespacedName{
 				Namespace: request.Namespace,
-				Name:      config.OwnedObjectName,
+				Name:      OwnedSecretName,
 			},
 			&hecSecret)
 		if err != nil {
@@ -219,7 +219,7 @@ func (e errorClient) Get(ctx context.Context, key client.ObjectKey, obj client.O
 }
 
 func objectNotFound() *kerrors.StatusError {
-	return kerrors.NewNotFound(schema.GroupResource{}, config.OwnedObjectName)
+	return kerrors.NewNotFound(schema.GroupResource{}, OwnedSecretName)
 }
 
 type mockSplunkClient struct {
