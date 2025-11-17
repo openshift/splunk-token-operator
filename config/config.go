@@ -16,8 +16,8 @@ const (
 
 type Splunk struct {
 	General `toml:"General"`
-	Classic Deployment
-	HCP     Deployment
+	Classic SplunkIndexes
+	HCP     SplunkIndexes
 }
 
 type General struct {
@@ -25,7 +25,7 @@ type General struct {
 	SplunkInstance string
 }
 
-type Deployment struct {
+type SplunkIndexes struct {
 	DefaultIndex   string
 	AllowedIndexes []string
 }

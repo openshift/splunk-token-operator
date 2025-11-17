@@ -35,7 +35,7 @@ import (
 	splunkapi "github.com/openshift/splunk-token-operator/internal/splunk"
 )
 
-const OwnedSecretName string = "splunk-hec-token"
+const OwnedSecretName string = "splunk-hec-token" // #nosec G101 -- this is not a credential
 
 // SplunkTokenReconciler reconciles a SplunkToken object
 type SplunkTokenReconciler struct {
