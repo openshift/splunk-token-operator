@@ -15,7 +15,7 @@ COPY cmd/main.go cmd/main.go
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager cmd/main.go
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6-1760515502
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1763362218
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532
