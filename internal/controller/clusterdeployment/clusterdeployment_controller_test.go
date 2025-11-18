@@ -99,7 +99,7 @@ func TestReconcile(t *testing.T) {
 				WithRuntimeObjects(clusterdeployment).
 				Build()
 
-			testIndexConfig := splunkIndexConfig{
+			testIndexConfig := SplunkIndexConfig{
 				Classic: config.SplunkIndexes{
 					DefaultIndex:   "classic_index",
 					AllowedIndexes: []string{"another_classic_index"},
@@ -113,7 +113,7 @@ func TestReconcile(t *testing.T) {
 			reconciler := ClusterDeploymentReconciler{
 				Client: fakeClient,
 				Scheme: scheme,
-				config: testIndexConfig,
+				Config: testIndexConfig,
 			}
 			_, err := reconciler.Reconcile(t.Context(), request)
 			if tt.WantError != nil {
@@ -192,7 +192,7 @@ func TestReconcile(t *testing.T) {
 				WithRuntimeObjects(clusterdeployment, currentToken).
 				Build()
 
-			testIndexConfig := splunkIndexConfig{
+			testIndexConfig := SplunkIndexConfig{
 				Classic: config.SplunkIndexes{
 					DefaultIndex:   "splunk_index",
 					AllowedIndexes: []string{"another_index"},
@@ -206,7 +206,7 @@ func TestReconcile(t *testing.T) {
 			reconciler := ClusterDeploymentReconciler{
 				Client: fakeClient,
 				Scheme: scheme,
-				config: testIndexConfig,
+				Config: testIndexConfig,
 			}
 			if _, err := reconciler.Reconcile(t.Context(), request); err != nil {
 				t.Fatalf("got unexpected error during reconcile: %s", err)

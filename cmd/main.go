@@ -235,6 +235,10 @@ func main() {
 	if err := (&clusterdeployment.ClusterDeploymentReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Config: clusterdeployment.SplunkIndexConfig{
+			Classic: splunkConfig.Classic,
+			HCP:     splunkConfig.HCP,
+		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterDeployment")
 		os.Exit(1)

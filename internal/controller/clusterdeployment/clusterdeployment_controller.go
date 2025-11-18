@@ -38,10 +38,10 @@ import (
 type ClusterDeploymentReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	config splunkIndexConfig
+	Config SplunkIndexConfig
 }
 
-type splunkIndexConfig struct {
+type SplunkIndexConfig struct {
 	Classic, HCP config.SplunkIndexes
 }
 
@@ -58,7 +58,10 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	log := logf.FromContext(ctx).WithValues("namespace", req.Namespace)
 
 	clusterdeployment := &hivev1.ClusterDeployment{}
-	if err := r.Get(ctx, req.NamespacedName, clusterdeployment); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, clusterdeployment); errors.IsNotFound(err) {
+		log.Info("clusterdeployment has been deleted, ending reconciliation")
+		return ctrl.Result{}, nil
+	} else if err != nil {
 		log.Error(err, "error retrieving ClustedDeployment")
 		return ctrl.Result{}, err
 	}
@@ -73,12 +76,12 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	clusterType := clusterdeployment.Labels[ClusterTypeLabel]
 	if clusterType == "management-cluster" {
 		log.Info("setting log indexes for management cluster")
-		defaultIndex = r.config.HCP.DefaultIndex
-		allowedIndexes = r.config.HCP.AllowedIndexes
+		defaultIndex = r.Config.HCP.DefaultIndex
+		allowedIndexes = r.Config.HCP.AllowedIndexes
 	} else {
 		log.Info("setting log indexes for classic cluster")
-		defaultIndex = r.config.Classic.DefaultIndex
-		allowedIndexes = r.config.Classic.AllowedIndexes
+		defaultIndex = r.Config.Classic.DefaultIndex
+		allowedIndexes = r.Config.Classic.AllowedIndexes
 	}
 
 	splunktoken := &stv1alpha1.SplunkToken{
@@ -107,7 +110,7 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		DefaultIndex:   defaultIndex,
 		AllowedIndexes: allowedIndexes,
 	}
-	if err := controllerutil.SetOwnerReference(clusterdeployment, splunktoken, r.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(clusterdeployment, splunktoken, r.Scheme); err != nil {
 		log.Error(err, "error setting owner reference")
 		return ctrl.Result{}, err
 	}
