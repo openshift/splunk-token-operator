@@ -22,6 +22,14 @@ rules:
   - delete
   - get
 - apiGroups:
+  - hive.openshift.io
+  resources:
+  - clusterdeployments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - splunktoken.managed.openshift.io
   resources:
   - splunktokens
