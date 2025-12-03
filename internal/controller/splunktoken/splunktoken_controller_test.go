@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package splunktoken
 
 import (
 	"context"
@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	hivescheme "github.com/openshift/hive/apis"
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,6 +55,7 @@ var request = reconcile.Request{
 func TestReconcile(t *testing.T) {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(stv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(hivescheme.AddToScheme(scheme))
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	t.Run("exits early if the token is not present", func(t *testing.T) {
@@ -81,7 +84,7 @@ func TestReconcile(t *testing.T) {
 
 		fakeClient := fakeclient.NewClientBuilder().
 			WithScheme(scheme).
-			WithRuntimeObjects(&splunkToken).
+			WithRuntimeObjects(&splunkToken, testSyncSet()).
 			Build()
 
 		mockSplunk := mockSplunkClient{
@@ -115,7 +118,7 @@ func TestReconcile(t *testing.T) {
 
 		fakeClient := fakeclient.NewClientBuilder().
 			WithScheme(scheme).
-			WithRuntimeObjects(&splunkToken).
+			WithRuntimeObjects(&splunkToken, testSyncSet()).
 			Build()
 
 		mockSplunk := mockSplunkClient{
@@ -152,7 +155,7 @@ func TestReconcile(t *testing.T) {
 
 		fakeClient := fakeclient.NewClientBuilder().
 			WithScheme(scheme).
-			WithRuntimeObjects(&splunkToken).
+			WithRuntimeObjects(&splunkToken, testSyncSet()).
 			Build()
 
 		mockSplunk := mockSplunkClient{
@@ -184,7 +187,7 @@ func TestReconcile(t *testing.T) {
 		err := fakeClient.Get(t.Context(),
 			types.NamespacedName{
 				Namespace: request.Namespace,
-				Name:      config.OwnedObjectName,
+				Name:      config.OwnedSecretName,
 			},
 			&hecSecret)
 		if err != nil {
@@ -219,7 +222,7 @@ func (e errorClient) Get(ctx context.Context, key client.ObjectKey, obj client.O
 }
 
 func objectNotFound() *kerrors.StatusError {
-	return kerrors.NewNotFound(schema.GroupResource{}, config.OwnedObjectName)
+	return kerrors.NewNotFound(schema.GroupResource{}, config.OwnedSecretName)
 }
 
 type mockSplunkClient struct {
@@ -275,4 +278,13 @@ func testSplunkToken() stv1alpha1.SplunkToken {
 	}
 	controllerutil.AddFinalizer(&token, config.TokenFinalizer)
 	return token
+}
+
+func testSyncSet() *hivev1.SyncSet {
+	return &hivev1.SyncSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: request.Namespace,
+			Name:      config.OwnedSecretName,
+		},
+	}
 }

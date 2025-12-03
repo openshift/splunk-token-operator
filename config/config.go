@@ -9,16 +9,16 @@ const (
 	OperatorNamespace string = "openshift-splunk-token-operator"
 
 	ApiTokenEnvKey  string = "SPLUNK_API_TOKEN" // #nosec G101 -- this is not a credential
-	ConfigFile      string = "/etc/splunktoken.d/splunktoken.toml"
-	OwnedObjectName string = "splunk-hec-token"
+	ConfigFile      string = "/etc/splunktoken.d/config.toml"
+	OwnedSecretName string = "splunk-hec-token" // #nosec G101 -- this is not a credential
 	SecretDataKey   string = "outputs.conf"
 	TokenFinalizer  string = "splunktoken.managed.openshift.io/finalizer"
 )
 
 type Splunk struct {
 	General `toml:"General"`
-	Classic Deployment
-	HCP     Deployment
+	Classic SplunkIndexes
+	HCP     SplunkIndexes
 }
 
 type General struct {
@@ -26,7 +26,7 @@ type General struct {
 	SplunkInstance string
 }
 
-type Deployment struct {
+type SplunkIndexes struct {
 	DefaultIndex   string
 	AllowedIndexes []string
 }

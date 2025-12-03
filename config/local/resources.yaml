@@ -3,16 +3,147 @@ kind: Namespace
 metadata:
   labels:
     app.kubernetes.io/managed-by: kustomize
-  name: token-test
+  name: splunk-token-operator
 ---
-apiVersion: splunktoken.managed.openshift.io/v1alpha1
-kind: SplunkToken
+apiVersion: apps/v1
+kind: Deployment
 metadata:
+  name: controller
+  namespace: splunk-token-operator
   labels:
+    control-plane: splunk-token-operator-controller
     app.kubernetes.io/name: splunk-token-operator
     app.kubernetes.io/managed-by: kustomize
-  name: splunk-token
-  namespace: token-test
 spec:
-  name: local-token
-  defaultIndex: development
+  selector:
+    matchLabels:
+      control-plane: splunk-token-operator-controller
+      app.kubernetes.io/name: splunk-token-operator
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: splunk-token-operator
+      labels:
+        control-plane: splunk-token-operator-controller
+        app.kubernetes.io/name: splunk-token-operator
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - command:
+        - /manager
+        args:
+          - --health-probe-bind-address=:8081
+        image: docker.io/library/controller:latest
+        imagePullPolicy: Never
+        name: splunk-token-operator
+        env:
+          - name: SPLUNK_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: splunk-api-token
+                key: token
+        ports: []
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        # TODO(user): Configure the resources accordingly based on the project requirements.
+        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        volumeMounts:
+          - name: config
+            mountPath: "/etc/splunktoken.d"
+            readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: splunk-config
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+  name: classic-test
+---
+apiVersion: hive.openshift.io/v1
+kind: ClusterDeployment
+metadata:
+  name: classic-cluster
+  namespace: classic-test
+  labels:
+    api.openshift.com/id: classic-cluster-id
+spec: 
+  preserveOnDelete: false
+  clusterName: foo
+  baseDomain: bar.baz
+  platform:
+    aws:
+      credentialsSecretRef:
+        name: foo-aws-creds
+      region: us-east-1
+  provisioning:
+    installConfigSecretRef:
+      name: foo-install-config
+    imageSetRef:
+      name: clusterimageset-sample
+
+  pullSecretRef:
+    name: "foo-pull-secret"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+  name: hcp-test
+---
+apiVersion: hive.openshift.io/v1
+kind: ClusterDeployment
+metadata:
+  name: hcp-cluster
+  namespace: hcp-test
+  labels:
+    api.openshift.com/id: hcp-cluster-id
+spec:
+  preserveOnDelete: false
+  clusterName: foo
+  baseDomain: bar.baz
+  platform:
+    aws:
+      credentialsSecretRef:
+        name: foo-aws-creds
+      region: us-east-1
+  provisioning:
+    installConfigSecretRef:
+      name: foo-install-config
+    imageSetRef:
+      name: clusterimageset-sample
+  pullSecretRef:
+    name: "foo-pull-secret"
+

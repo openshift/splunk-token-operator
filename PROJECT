@@ -20,4 +20,11 @@ resources:
   kind: SplunkToken
   path: github.com/openshift/splunk-token-operator/api/v1alpha1
   version: v1alpha1
+- controller: true
+  domain: openshift.io
+  external: true
+  group: hive
+  kind: ClusterDeployment
+  path: github.com/openshift/hive/apis/hive/v1
+  version: v1
 version: "3"

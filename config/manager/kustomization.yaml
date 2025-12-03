@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/app-sre/splunk-token-operator
-  newTag: v0.1.28-gb898c3e
+  newTag: v0.1.33-g9c45655
