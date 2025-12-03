@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"time"
 
+	hivev1 "github.com/openshift/hive/apis/hive/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,8 +35,6 @@ import (
 	"github.com/openshift/splunk-token-operator/config"
 	splunkapi "github.com/openshift/splunk-token-operator/internal/splunk"
 )
-
-const OwnedSecretName string = "splunk-hec-token" // #nosec G101 -- this is not a credential
 
 // SplunkTokenReconciler reconciles a SplunkToken object
 type SplunkTokenReconciler struct {
@@ -65,7 +64,7 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	log.Info("reconciling splunk token")
 
 	tokenObject := &stv1alpha1.SplunkToken{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: req.Namespace,
 			Name:      req.Name,
 		},
@@ -105,9 +104,9 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	tokenSecret := &corev1.Secret{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: req.Namespace,
-			Name:      OwnedSecretName,
+			Name:      config.OwnedSecretName,
 		},
 	}
 	if err := r.Get(ctx, client.ObjectKeyFromObject(tokenSecret), tokenSecret); errors.IsNotFound(err) {
@@ -126,7 +125,7 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			log.Error(err, "error creating HEC token")
 			return ctrl.Result{}, err
 		}
-		r.newSecretObject(req.Namespace, hecToken.Value, tokenSecret)
+		r.addSecretData(hecToken.Value, tokenSecret)
 		if err := controllerutil.SetControllerReference(tokenObject, tokenSecret, r.Scheme); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -139,6 +138,36 @@ func (r *SplunkTokenReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		log.Error(err, "unable to fetch token Secret")
 		return ctrl.Result{}, err
 	}
+
+	// update SyncSet with secret mapping
+	syncset := &hivev1.SyncSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: req.Namespace,
+			Name:      config.OwnedSecretName,
+		},
+	}
+	if err := r.Get(ctx, client.ObjectKeyFromObject(syncset), syncset); err != nil {
+		log.Error(err, "error retrieving secret SyncSet")
+		return ctrl.Result{}, err
+	}
+	syncset.Spec.Secrets = []hivev1.SecretMapping{
+		{
+			SourceRef: hivev1.SecretReference{
+				Namespace: req.Namespace,
+				Name:      config.OwnedSecretName,
+			},
+			TargetRef: hivev1.SecretReference{
+				Namespace: "openshift-security",
+				Name:      config.OwnedSecretName,
+			},
+		},
+	}
+	if err := r.Update(ctx, syncset); err != nil {
+		log.Error(err, "error updating syncset")
+		return ctrl.Result{}, err
+	}
+
+	log.Info("end reconciliation")
 	return ctrl.Result{}, nil
 }
 
@@ -151,9 +180,7 @@ func (r *SplunkTokenReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *SplunkTokenReconciler) newSecretObject(namespace, tokenValue string, secret *corev1.Secret) {
-	secret.Name = OwnedSecretName
-	secret.Namespace = namespace
+func (r *SplunkTokenReconciler) addSecretData(tokenValue string, secret *corev1.Secret) {
 	outputsConf := `[httpout]
 httpEventCollectorToken = %s
 uri = %s`
@@ -161,8 +188,6 @@ uri = %s`
 	secret.Data = map[string][]byte{
 		config.SecretDataKey: data,
 	}
-	truePtr := true
-	secret.Immutable = &truePtr
 }
 
 func (r *SplunkTokenReconciler) collectorUri() string {

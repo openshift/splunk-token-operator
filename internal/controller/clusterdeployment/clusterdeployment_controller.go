@@ -22,8 +22,9 @@ import (
 	"reflect"
 
 	hivev1 "github.com/openshift/hive/apis/hive/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,6 +53,8 @@ const (
 )
 
 // +kubebuilder:rbac:groups=hive.openshift.io,resources=clusterdeployments,verbs=get;list;watch
+// +kubebuilder:rbac:groups=hive.openshift.io,resources=syncsets,verbs=list;watch;create
+// +kubebuilder:rbac:groups=hive.openshift.io,resources=syncsets,resourceNames=splunk-hec-token,verbs=get;update;patch;delete
 
 // Reconcile ensures that ClusterDeployments have a corresponding SplunkToken.
 func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -85,7 +88,7 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	splunktoken := &stv1alpha1.SplunkToken{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Namespace: req.Namespace,
 			Name:      TokenObjectName,
 		},
@@ -126,6 +129,30 @@ func (r *ClusterDeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, err
 		}
 	}
+
+	// create SyncSet for Secret
+	tokenSyncSet := &hivev1.SyncSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: req.Namespace,
+			Name:      config.OwnedSecretName,
+		},
+	}
+	if err := r.Get(ctx, client.ObjectKeyFromObject(tokenSyncSet), tokenSyncSet); errors.IsNotFound(err) {
+		log.Info("creating SyncSet for HEC token secret")
+		r.createSyncSet(req.Name, tokenSyncSet)
+		if err := controllerutil.SetControllerReference(clusterdeployment, tokenSyncSet, r.Scheme); err != nil {
+			return ctrl.Result{}, err
+		}
+		if err := r.Create(ctx, tokenSyncSet); err != nil {
+			log.Error(err, "error creating SyncSet")
+		}
+	} else if err != nil {
+		log.Error(err, "error fetching SyncSet")
+		return ctrl.Result{}, err
+	} else {
+		log.Info("secret SyncSet already exists")
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -136,4 +163,12 @@ func (r *ClusterDeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Named("clusterdeployment").
 		Owns(&stv1alpha1.SplunkToken{}).
 		Complete(r)
+}
+
+func (r *ClusterDeploymentReconciler) createSyncSet(clusterName string, syncset *hivev1.SyncSet) {
+	syncset.Spec.ClusterDeploymentRefs = []corev1.LocalObjectReference{
+		{
+			Name: clusterName,
+		},
+	}
 }

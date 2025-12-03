@@ -30,6 +30,25 @@ rules:
   - list
   - watch
 - apiGroups:
+  - hive.openshift.io
+  resources:
+  - syncsets
+  verbs:
+  - create
+  - list
+  - watch
+- apiGroups:
+  - hive.openshift.io
+  resourceNames:
+  - splunk-hec-token
+  resources:
+  - syncsets
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
   - splunktoken.managed.openshift.io
   resources:
   - splunktokens

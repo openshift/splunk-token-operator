@@ -25,6 +25,7 @@ go.work
 *.swp
 *.swo
 *~
+.env
 
 # built Kustomization files
 dist/
