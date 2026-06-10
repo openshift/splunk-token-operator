@@ -1,4 +1,4 @@
-FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v8.2.0 AS builder
+FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v8.3.6 AS builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -15,7 +15,7 @@ COPY cmd/main.go cmd/main.go
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager cmd/main.go
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1764794109
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1780378819
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532
